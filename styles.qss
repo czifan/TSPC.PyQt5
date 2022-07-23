@@ -1,0 +1,29 @@
+QPushButton#blueButton {
+    background-color: #1E88E5;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    min-width: 80px
+}
+
+QPushButton#blueButton:hover {
+    background-color: #1976D2;
+}
+
+
+QPushButton#blueButton:hover:pressed {
+    background-color: #0D47A1;
+}
+
+QLabel#selectedFolderLabel {
+background-color: white;
+border: 1px solid #aaa
+}
+
+QLabel#headline {
+font-weight: bold;
+}
+
+
+
+
