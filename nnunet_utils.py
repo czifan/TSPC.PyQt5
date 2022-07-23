@@ -17,7 +17,8 @@ class Segmentor(object):
                 save_npz=False, 
                 do_tta=True,
                 mixed_precision=True,
-                all_in_gpu=torch.cuda.is_available()):
+                all_in_gpu=torch.cuda.is_available(),
+                printer=print):
         super().__init__()
         trainer, params = load_model_and_checkpoint_files(
             folder, 
@@ -31,12 +32,13 @@ class Segmentor(object):
         self.do_tta = do_tta
         self.mixed_precision = mixed_precision
         self.all_in_gpu = all_in_gpu
+        self.printer = printer
 
     def _preprocess_save_to_queue(self, preprocess_fn, input_file, output_file):
-        print("preprocessing", output_file)
+        self.printer("preprocessing", output_file)
         d, _, dct = preprocess_fn([[input_file,]])
         if np.prod(d.shape) > (2e9 / 4 * 0.85):  # *0.85 just to be save, 4 because float32 is 4 bytes
-            print(
+            self.printer(
                 "This output is too large for python process-process communication. "
                 "Saving output temporarily to disk")
             np.save(output_file[:-7] + ".npy", d)
@@ -56,14 +58,14 @@ class Segmentor(object):
             interpolation_order = 1
             interpolation_order_z = 0
 
-        print("preprocessing generator")
+        self.printer("preprocessing generator")
         output_file, (d, dct) = self._preprocess_save_to_queue(
             self.trainer.preprocess_patient, input_file, output_file)
         if isinstance(d, str):
             data = np.load(d)
             os.remove(d)
             d = data
-        print("predicting", output_file)
+        self.printer("predicting", output_file)
         softmax = []
         for p in self.params:
             self.trainer.load_checkpoint_ram(p, False)
@@ -93,7 +95,7 @@ class Segmentor(object):
         if self.all_in_gpu:
             bytes_per_voxel = 2  # if all_in_gpu then the return value is half (float16)
         if np.prod(softmax_mean.shape) > (2e9 / bytes_per_voxel * 0.85):  # * 0.85 just to be save
-            print(
+            self.printer(
                 "This output is too large for python process-process communication. Saving output temporarily to disk")
             np.save(output_filename[:-7] + ".npy", softmax_mean)
             softmax_mean = output_filename[:-7] + ".npy"

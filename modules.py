@@ -287,6 +287,9 @@ class SuperDrawQLabel(QLabel):
 
         self.scaledImg.save(os.path.join(self.cache_dir, f'{self.cur_idx}.jpg'))
 
+    def setBaseSeg(self, np_seg):
+        self.np_seg = np_seg # (H, W)
+
     def paintEvent(self, event):
         if not self.openPaint:
             self.imgPainter = QPainter()                                           # 用于动态绘制图片

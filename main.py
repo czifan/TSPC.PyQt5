@@ -41,7 +41,7 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.Console.ensureCursorVisible()
 
     def _initSegor(self):
-        self.segmentor = Segmentor(self.folder, self.folds, self.checkpoint_name)
+        self.segmentor = Segmentor(self.folder, self.folds, self.checkpoint_name, printer=self.printer)
 
     def _initParams(self):
         desktop = QApplication.desktop()
@@ -60,6 +60,9 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.cacheOutputDir = os.path.join(self.cacheDir, "Outputs")
         os.makedirs(self.cacheInputDir, exist_ok=True)
         os.makedirs(self.cacheOutputDir, exist_ok=True)
+
+        self.logger = build_logging(os.path.join(self.cacheDir, "log.txt"))
+        self.printer = self.logger.info
 
         self.window_level_value = 60
         self.window_width_value = 180
@@ -86,7 +89,7 @@ class SetupWindow(QtWidgets.QMainWindow):
             with open(style_file, 'r') as fh:
                 self.setStyleSheet(fh.read())
         except:
-            print("Can't load custom stylesheet.")
+            self.printer("Can't load custom stylesheet.")
 
     def _initUI_MenuBar(self):
         self.MenubarWidth = self.width
@@ -235,7 +238,7 @@ class SetupWindow(QtWidgets.QMainWindow):
     def _initUI_CTView(self):
         self.CTVLeftMargin = 2*self.WSMargin+self.WSWidth+int(0.006*self.width)
         self.CTVTopMargin = int(0.026*self.height)
-        self.CTVWidth = int(0.360*self.width)
+        self.CTVWidth = int(0.350*self.width)
         self.CTVHeight = int(0.380*self.height)
         self.CTVBWidth = int(0.026*self.height)
         self.CTVBHeight = int(0.026*self.height)
@@ -442,6 +445,7 @@ class SetupWindow(QtWidgets.QMainWindow):
         seg = sitk.ReadImage(self.seg_file)
         seg = sitk.GetArrayFromImage(seg)
         self.np_seg = seg[0]
+        self.SLsag.setBaseSeg(self.np_seg)
         self._computeParams(self.np_seg)
         self._showTable()
 
@@ -507,34 +511,66 @@ class SetupWindow(QtWidgets.QMainWindow):
 
     def _openNiiFileFunc(self):
         filename, filetype = QFileDialog.getOpenFileName(self,
-                                                        "select files",
+                                                        "select file (open)",
                                                         os.getcwd(),
                                                         'All File(*);;Nii Files(*.nii.gz)')
         self.filename = filename
-        self.setWindowTitle(f'{self.title} ({os.path.basename(self.filename).split(".")[0]})')
+        self.showname = os.path.basename(self.filename).split(".")[0]
+        self.setWindowTitle(f'{self.title} ({self.showname})')
         self.filetype = filetype
         self.image = sitk.ReadImage(self.filename)
         self._initImage()
         
     def _openDicomDirFunc(self):
         self.dicom_dir = QtWidgets.QFileDialog.getExistingDirectory(None, "select dicom path", os.getcwd())
+        self.showname = os.path.basename(self.dicom_dir)
+        self.setWindowTitle(f'{self.title} ({self.showname})')
         self.image = read_dcm(self.dicom_dir)
         self._initImage()
 
     def _saveSegFunc(self):
-        return 
+        try:
+            filename, filetype = QFileDialog.getSaveFileName(self,
+                                                            "select file (save)",
+                                                            os.path.join(os.getcwd(), self.showname+".nii.gz"),
+                                                            "nii.gz(*.nii.gz)")
+            shutil.copy(self.seg_file, filename)
+            self.printer(f"Saved the log to {filename}")
+        except:
+            QtWidgets.QMessageBox.critical(self, "Error", "Unrecognized file!")
 
     def _saveExcelFunc(self):
-        return 
+        try:
+            book = xlwt.Workbook(encoding="utf-8", style_compression=0)
+            sheet = book.add_sheet("Sheet", cell_overwrite_ok=True)
+            for row_id in range(len(self.table_data)):
+                sheet.write(row_id, 0, self.table_data[row_id][0])
+                sheet.write(row_id, 1, self.table_data[row_id][1])
+            filename, filetype = QFileDialog.getSaveFileName(self,
+                                                            "select file (save)",
+                                                            os.path.join(os.getcwd(), self.showname+".xls"),
+                                                            "xls(*.xls)")
+            book.save(filename)
+            self.printer(f"Saved the calculated parameter to {filename}")
+        except:
+            QtWidgets.QMessageBox.critical(self, "Error", "Unrecognized file!")
 
     def _saveLogFunc(self):
-        return 
+        try:
+            filename, filetype = QFileDialog.getSaveFileName(self,
+                                                            "select file (save)",
+                                                            os.path.join(os.getcwd(), self.showname+".txt"),
+                                                            "txt(*.txt)")
+            shutil.copy(os.path.join(self.cacheOutputDir, "log.txt"), filename)
+            self.printer(f"Saved the segmented result to {filename}")
+        except:
+            QtWidgets.QMessageBox.critical(self, "Error", "Unrecognized file!")
 
     def _helpAboutFunc(self):
-        return 
+        QDesktopServices.openUrl(QUrl("https://github.com/czifan/TSPC.PyQt5")) 
 
     def _helpDocFunc(self):
-        return
+        QDesktopServices.openUrl(QUrl("https://github.com/czifan/TSPC.PyQt5")) 
 
     def _windowLevelChangedFunc(self):
         self.window_level_value = int(self.WSlevel.Slider.value())
