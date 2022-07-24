@@ -1,4 +1,26 @@
-from __init__ import *
+import csv
+import os
+import shutil
+import sys
+import numpy as np
+from PyQt5 import QtWidgets, QtCore, QtGui, sip
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from xlsxwriter.workbook import Workbook
+import SimpleITK as sitk 
+from time import sleep
+import qtawesome
+import cv2
+import shutil
+from copy import deepcopy
+import subprocess
+import xlwt
+import logging
+from PIL import Image, ImageQt
+from qt_material import apply_stylesheet
+import qdarkstyle
+from qdarkstyle.light.palette import LightPalette
 from modules import *
 from utils import *
 from nnunet_utils import *
@@ -67,6 +89,9 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.window_level_value = 60
         self.window_width_value = 180
 
+        self.theme = open("theme.txt", "r").readlines()[0].strip()
+        self.open_draw = False
+
     # Views
     def centerOnScreen(self):
         resolution = QDesktopWidget().screenGeometry()
@@ -85,11 +110,7 @@ class SetupWindow(QtWidgets.QMainWindow):
         self._initUI_Console()
         self._initUI_ParamView()
 
-        try:
-            with open(style_file, 'r') as fh:
-                self.setStyleSheet(fh.read())
-        except:
-            self.printer("Can't load custom stylesheet.")
+        self._ChangeTheme(self.theme)
 
     def _initUI_MenuBar(self):
         self.MenubarWidth = self.width
@@ -142,7 +163,28 @@ class SetupWindow(QtWidgets.QMainWindow):
 
         self.Menubar.addAction(self.MenubarHelp.menuAction())
 
+        # Theme
+        self.MenubarTheme = QtWidgets.QMenu("Theme", self.Menubar)
+
+        self.AthemeQtDark = QtWidgets.QAction("Qt-Material-Dark"+(" (default)" if self.theme=="QtDark" else ""), self)
+        self.AthemeQtDark.mode = "QtDark"
+        self.AthemeQtDark.triggered.connect(self._themeChangedFunc)
+        self.MenubarTheme.addAction(self.AthemeQtDark)
+
+        # self.AthemeQDarkStyle = QtWidgets.QAction("QDarkStyleSheet-Dark"+(" (default)" if self.theme=="QDarkStyle" else ""), self)
+        # self.AthemeQDarkStyle.mode = "QDarkStyle"
+        # self.AthemeQDarkStyle.triggered.connect(self._themeChangedFunc)
+        # self.MenubarTheme.addAction(self.AthemeQDarkStyle)
+
+        self.AthemeQLightStyle = QtWidgets.QAction("QDarkStyleSheet-Light"+(" (default)" if self.theme=="QLightStyle" else ""), self)
+        self.AthemeQLightStyle.mode = "QLightStyle"
+        self.AthemeQLightStyle.triggered.connect(self._themeChangedFunc)
+        self.MenubarTheme.addAction(self.AthemeQLightStyle)
+
+        self.Menubar.addAction(self.MenubarTheme.menuAction())
+
     def _initUI_Selector(self):
+        self.WSTopMargin = int(0.026*self.height)
         self.WSMargin = int(0.006*self.width)
         self.WSWidth = int(0.109*self.width)
         self.WSHeight = int(0.103*self.height)
@@ -152,7 +194,7 @@ class SetupWindow(QtWidgets.QMainWindow):
         pen = QPen(Qt.black, 10, Qt.SolidLine)
 
         self.WSlevel = WindowSlider(self,
-                                    title="Win.(Level)",
+                                    title="Window Level",
                                     minimum=-1000,
                                     maximum=1000,
                                     single_step=1,
@@ -161,10 +203,10 @@ class SetupWindow(QtWidgets.QMainWindow):
                                     add_slider=True)
         self.WSlevel.Slider.valueChanged.connect(self._windowLevelChangedFunc)
         self.WSlevel.resize(self.WSWidth, self.WSHeight)
-        self.WSlevel.setGeometry(self.WSMargin, 2*self.WSMargin, self.WSWidth, self.WSHeight)
+        self.WSlevel.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin, self.WSWidth, self.WSHeight)
 
         self.WSwidth = WindowSlider(self,
-                                    title="Win.(Width)",
+                                    title="Window Width",
                                     minimum=0,
                                     maximum=2000,
                                     single_step=1,
@@ -173,10 +215,10 @@ class SetupWindow(QtWidgets.QMainWindow):
                                     add_slider=True)
         self.WSwidth.Slider.valueChanged.connect(self._windowWidthChangedFunc)
         self.WSwidth.resize(self.WSWidth, self.WSHeight)
-        self.WSwidth.setGeometry(self.WSMargin, 2*self.WSMargin+(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WSwidth.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
 
         self.WStraSlice = WindowSlider(self,
-                                    title="Tra. Sli.",
+                                    title="Transverse Slice ID",
                                     minimum=0,
                                     maximum=100,
                                     single_step=1,
@@ -185,10 +227,10 @@ class SetupWindow(QtWidgets.QMainWindow):
                                     add_slider=True)
         self.WStraSlice.Slider.valueChanged.connect(self._windowTraSliChangedFunc)
         self.WStraSlice.resize(self.WSWidth, self.WSHeight)
-        self.WStraSlice.setGeometry(self.WSMargin, 2*self.WSMargin+2*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WStraSlice.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+2*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
 
         self.WSsagSlice = WindowSlider(self,
-                                    title="Sag. Sli.",
+                                    title="Sagittal Slice ID",
                                     minimum=0,
                                     maximum=500,
                                     single_step=1,
@@ -197,10 +239,10 @@ class SetupWindow(QtWidgets.QMainWindow):
                                     add_slider=True)
         self.WSsagSlice.Slider.valueChanged.connect(self._windowSagSliChangedFunc)
         self.WSsagSlice.resize(self.WSWidth, self.WSHeight)
-        self.WSsagSlice.setGeometry(self.WSMargin, 2*self.WSMargin+3*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WSsagSlice.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+3*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
 
         self.WScorSlice = WindowSlider(self,
-                                    title="Cor. Sli.",
+                                    title="Coronal Slice ID",
                                     minimum=0,
                                     maximum=500,
                                     single_step=1,
@@ -209,10 +251,10 @@ class SetupWindow(QtWidgets.QMainWindow):
                                     add_slider=True)
         self.WScorSlice.Slider.valueChanged.connect(self._windowCorSliChangedFunc)
         self.WScorSlice.resize(self.WSWidth, self.WSHeight)
-        self.WScorSlice.setGeometry(self.WSMargin, 2*self.WSMargin+4*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WScorSlice.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+4*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
 
         self.WSheight = WindowSlider(self,
-                                    title="Height(cm)",
+                                    title="Patient's Height (cm)",
                                     minimum=0,
                                     maximum=250,
                                     single_step=1,
@@ -220,28 +262,42 @@ class SetupWindow(QtWidgets.QMainWindow):
                                     interval=1,
                                     add_slider=True)
         self.WSheight.resize(self.WSWidth, self.WSHeight)
-        self.WSheight.setGeometry(self.WSMargin, 2*self.WSMargin+5*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WSheight.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+5*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
 
         self.LSselector = LabelSelector(self, 
                                         title="Label Selector",
                                         labels=["MPSI", "MPSO", "MVEN", "SAT", "VAT"])
         self.LSselector.resize(self.WSWidth, self.WSHeight*2)
-        self.LSselector.setGeometry(self.WSMargin, 2*self.WSMargin+6*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight*2)
+        self.LSselector.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+6*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight*2)
         for Button in self.LSselector.Buttons:
             Button.toggled.connect(self._showLabelChangedFunc)
         #self.LSselector.BshowImage.toggled.connect(self._showImageChangedFunc)
+        self._closeSelector()
 
-        self.Bgenerate = QPushButton("Generate", self)
-        self.Bgenerate.setGeometry(self.WSMargin, 3*self.WSMargin+7*(self.WSMargin+self.WSHeight)+self.WSHeight, self.WSWidth, self.WSHeight//3)
+        self.Bgenerate = QPushButton("GENERATE", self)
+        self.Bgenerate.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+7*(self.WSMargin+self.WSHeight)+self.WSHeight, self.WSWidth, self.WSHeight//3)
         self.Bgenerate.clicked.connect(self._generateSegFunc)
+
+        self.SelectorObjs = [
+            self.WSlevel,
+            self.WSwidth,
+            self.WStraSlice,
+            self.WSsagSlice,
+            self.WScorSlice,
+            self.WSheight,
+            self.Bgenerate,
+        ]
+
+        for obj in self.SelectorObjs:
+            obj.setEnabled(False)
 
     def _initUI_CTView(self):
         self.CTVLeftMargin = 2*self.WSMargin+self.WSWidth+int(0.006*self.width)
-        self.CTVTopMargin = int(0.026*self.height)
+        self.CTVTopMargin = int(0.036*self.height)
         self.CTVWidth = int(0.350*self.width)
         self.CTVHeight = int(0.380*self.height)
-        self.CTVBWidth = int(0.026*self.height)
-        self.CTVBHeight = int(0.026*self.height)
+        self.CTVBWidth = int(0.030*self.height)
+        self.CTVBHeight = int(0.030*self.height)
 
         self.SLtra = SuperQLabel(self)
         self.SLtra.setGeometry(self.CTVLeftMargin, self.CTVTopMargin, self.CTVWidth, self.CTVHeight)
@@ -265,57 +321,57 @@ class SetupWindow(QtWidgets.QMainWindow):
 
 
         self.Badd = QPushButton(self)
-        self.Badd.setIcon(QIcon("Icons/add.png"))
+        self.Badd.setIcon(QIcon(f"Icons/{self.theme}/draw_False.png"))
         self.Badd.resize(self.CTVBWidth, self.CTVBHeight)
         self.Badd.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-5*self.CTVBWidth,
                          self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
-                         self.CTVBWidth, self.CTVBHeight)
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
         self.Badd.setEnabled(False)
-        self.Badd.setToolTip("Add")
-        self.Badd.mode = "Add"
+        self.Badd.setToolTip("Draw")
+        self.Badd.mode = "Draw"
         self.Badd.clicked.connect(self._drawChangedFunc)
 
         self.Berase = QPushButton(self)
-        self.Berase.setIcon(QIcon("Icons/erase.png"))
+        self.Berase.setIcon(QIcon(f"Icons/{self.theme}/erase_False.png"))
         self.Berase.resize(self.CTVBWidth, self.CTVBHeight)
         self.Berase.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-4*self.CTVBWidth,
                          self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
-                         self.CTVBWidth, self.CTVBHeight)
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
         self.Berase.setEnabled(False)
         self.Berase.setToolTip("Erase")
         self.Berase.mode = "Erase"
         self.Berase.clicked.connect(self._drawChangedFunc)
 
         self.Bback = QPushButton(self)
-        self.Bback.setIcon(QIcon("Icons/back.png"))
+        self.Bback.setIcon(QIcon(f"Icons/{self.theme}/back_False.png"))
         self.Bback.resize(self.CTVBWidth, self.CTVBHeight)
         self.Bback.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-3*self.CTVBWidth,
                          self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
-                         self.CTVBWidth, self.CTVBHeight)
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
         self.Bback.setEnabled(False)
         self.Bback.setToolTip("Back")
         self.Bback.mode = "Back"
         self.Bback.clicked.connect(self._drawChangedFunc)
 
         self.Bexit = QPushButton(self)
-        self.Bexit.setIcon(QIcon("Icons/exit.png"))
+        self.Bexit.setIcon(QIcon(f"Icons/{self.theme}/finish_False.png"))
         self.Bexit.resize(self.CTVBWidth, self.CTVBHeight)
         self.Bexit.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-2*self.CTVBWidth,
                          self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
-                         self.CTVBWidth, self.CTVBHeight)
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
         self.Bexit.setEnabled(False)
-        self.Bexit.setToolTip("Exit")
-        self.Bexit.mode = "Exit"
+        self.Bexit.setToolTip("Finish")
+        self.Bexit.mode = "Finish"
         self.Bexit.clicked.connect(self._drawChangedFunc)
 
         self.Bview = QPushButton(self)
-        self.Bview.setIcon(QIcon("Icons/zoom_in.png"))
+        self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_in_False.png"))
         self.Bview.resize(self.CTVBWidth, self.CTVBHeight)
         self.Bview.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-1*self.CTVBWidth,
                          self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
-                         self.CTVBWidth, self.CTVBHeight)
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
         self.Bview.setEnabled(False)
-        self.Bview.setToolTip("View")
+        self.Bview.setToolTip("Zoom in")
         self.Bview.mode = "View"
         self.Bview.clicked.connect(self._viewChangedFunc)
 
@@ -323,11 +379,12 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.SpenWidth.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-10*self.CTVBWidth,
                                 self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
                                 self.CTVBWidth*5*0.95, self.CTVBHeight)
+        self.SpenWidth.setStyleSheet('background-color: black')
         self.SpenWidth.setEnabled(False)
         self.SpenWidth.setMinimum(1)
         self.SpenWidth.setMaximum(10)
         self.SpenWidth.setSingleStep(1)
-        self.SpenWidth.setValue(4)
+        self.SpenWidth.setValue(6)
         self.SpenWidth.setTickInterval(1)
         self.SpenWidth.setTickPosition(QSlider.TicksBelow)
         self.SpenWidth.valueChanged.connect(self._penWidthChangedFunc)
@@ -336,6 +393,7 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.Salpha.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-10*self.CTVBWidth, 
                                self.CTVTopMargin*1.5+self.CTVHeight, 
                                self.CTVBWidth*10*0.95, self.CTVBHeight)
+        self.Salpha.setStyleSheet('background-color: black')
         self.Salpha.setEnabled(True)
         self.Salpha.setMinimum(0)
         self.Salpha.setMaximum(100)
@@ -445,7 +503,7 @@ class SetupWindow(QtWidgets.QMainWindow):
         seg = sitk.ReadImage(self.seg_file)
         seg = sitk.GetArrayFromImage(seg)
         self.np_seg = seg[0]
-        self.SLsag.setBaseSeg(self.np_seg)
+        self.SLseg.setBaseSeg(self.np_seg)
         self._computeParams(self.np_seg)
         self._showTable()
 
@@ -511,22 +569,32 @@ class SetupWindow(QtWidgets.QMainWindow):
 
     def _openNiiFileFunc(self):
         filename, filetype = QFileDialog.getOpenFileName(self,
-                                                        "select file (open)",
-                                                        os.getcwd(),
-                                                        'All File(*);;Nii Files(*.nii.gz)')
+                                                            "select file (open)",
+                                                            os.getcwd(),
+                                                            'All File(*);;Nii Files(*.nii.gz)')
+        if not os.path.isfile(filename):
+            QtWidgets.QMessageBox.critical(self, "Error", "Unrecognized file!")
+            return 
         self.filename = filename
         self.showname = os.path.basename(self.filename).split(".")[0]
         self.setWindowTitle(f'{self.title} ({self.showname})')
         self.filetype = filetype
         self.image = sitk.ReadImage(self.filename)
         self._initImage()
+        for obj in self.SelectorObjs:
+            obj.setEnabled(True)
         
     def _openDicomDirFunc(self):
         self.dicom_dir = QtWidgets.QFileDialog.getExistingDirectory(None, "select dicom path", os.getcwd())
+        if not os.path.isdir(self.dicom_dir):
+            QtWidgets.QMessageBox.critical(self, "Error", "Unrecognized path!")
+            return 
         self.showname = os.path.basename(self.dicom_dir)
         self.setWindowTitle(f'{self.title} ({self.showname})')
         self.image = read_dcm(self.dicom_dir)
         self._initImage()
+        for obj in self.SelectorObjs:
+            obj.setEnabled(True)
 
     def _saveSegFunc(self):
         try:
@@ -534,10 +602,18 @@ class SetupWindow(QtWidgets.QMainWindow):
                                                             "select file (save)",
                                                             os.path.join(os.getcwd(), self.showname+".nii.gz"),
                                                             "nii.gz(*.nii.gz)")
-            shutil.copy(self.seg_file, filename)
-            self.printer(f"Saved the log to {filename}")
-        except:
-            QtWidgets.QMessageBox.critical(self, "Error", "Unrecognized file!")
+
+            seg = self.SLseg.ni_to_np_seg[self.SLseg.cur_idx]
+            seg[seg == 100] = 0
+            save_seg = np.zeros_like(self.np_image).astype(np.uint8)
+            save_seg[-self.tra_slice_idx] = seg
+            save_seg = sitk.GetImageFromArray(save_seg)
+            save_seg.SetSpacing(self.spacing)
+            sitk.WriteImage(save_seg, filename)
+            #shutil.copy(self.seg_file, filename)
+            self.printer(f"Saved the segmented result to {filename}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Unrecognized file! {e}")
 
     def _saveExcelFunc(self):
         try:
@@ -562,7 +638,7 @@ class SetupWindow(QtWidgets.QMainWindow):
                                                             os.path.join(os.getcwd(), self.showname+".txt"),
                                                             "txt(*.txt)")
             shutil.copy(os.path.join(self.cacheOutputDir, "log.txt"), filename)
-            self.printer(f"Saved the segmented result to {filename}")
+            self.printer(f"Saved the log to {filename}")
         except:
             QtWidgets.QMessageBox.critical(self, "Error", "Unrecognized file!")
 
@@ -571,6 +647,40 @@ class SetupWindow(QtWidgets.QMainWindow):
 
     def _helpDocFunc(self):
         QDesktopServices.openUrl(QUrl("https://github.com/czifan/TSPC.PyQt5")) 
+
+    def _ChangeTheme(self, theme):
+        if theme == "QtDark":
+            apply_stylesheet(self, theme='dark_teal.xml')
+            self.AthemeQtDark.setText("Qt-Material-Dark (default)")
+        elif theme == "QDarkStyle":
+            self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+            self.setStyleSheet(qdarkstyle.load_stylesheet(qt_api='pyqt5'))
+            self.AthemeQDarkStyle.setText("QDarkStyleSheet-Dark (default)")
+        elif theme == "QLightStyle":
+            self.setStyleSheet(qdarkstyle.load_stylesheet(qt_api='pyqt5', palette=LightPalette()))
+            self.AthemeQLightStyle.setText("QDarkStyleSheet-Light (default)")
+
+    def _themeChangedFunc(self):
+        theme = self.sender().mode
+        self._ChangeTheme(theme)
+        self.theme = theme
+        with open("theme.txt", "w") as f:
+            f.write(self.theme)
+
+        if self.open_draw:
+            self.Badd.setIcon(QIcon(f"Icons/{self.theme}/draw_True.png"))
+            self.Berase.setIcon(QIcon(f"Icons/{self.theme}/erase_True.png"))
+            self.Bback.setIcon(QIcon(f"Icons/{self.theme}/back_True.png"))
+            self.Bexit.setIcon(QIcon(f"Icons/{self.theme}/finish_True.png"))
+        else:
+            self.Badd.setIcon(QIcon(f"Icons/{self.theme}/draw_False.png"))
+            self.Berase.setIcon(QIcon(f"Icons/{self.theme}/erase_False.png"))
+            self.Bback.setIcon(QIcon(f"Icons/{self.theme}/back_False.png"))
+            self.Bexit.setIcon(QIcon(f"Icons/{self.theme}/finish_False.png"))
+        if self.single_view:
+            self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_out_True.png"))
+        else:
+            self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_in_True.png"))
 
     def _windowLevelChangedFunc(self):
         self.window_level_value = int(self.WSlevel.Slider.value())
@@ -629,7 +739,8 @@ class SetupWindow(QtWidgets.QMainWindow):
             self._closeDraw()
 
         try:
-            tmp_np_seg = deepcopy(self.np_seg)
+            # tmp_np_seg = deepcopy(self.np_seg)
+            tmp_np_seg = deepcopy(self.SLseg.ni_to_np_seg[self.SLseg.cur_idx])
             for i in np.unique(tmp_np_seg):
                 if i not in keep_label_ids:
                     tmp_np_seg[tmp_np_seg == i] = 0
@@ -643,8 +754,13 @@ class SetupWindow(QtWidgets.QMainWindow):
             cv2.imwrite(self.show_seg_file, image)
             self.SLseg.setPixmap(self.show_seg_file)
 
+            if self.single_view:
+                self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_out_True.png"))
+            else:
+                self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_in_True.png"))
             self.Bview.setEnabled(True)
-        except:
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", "Algorithm failed!")
             return
 
     def _generateSegFunc(self):
@@ -661,17 +777,20 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.seg_file = output_file
 
         self._showSeg()
+        self._openSelector()
 
     def _viewChangedFunc(self):
         if self.single_view == False:
-            self.Bview.setIcon(QIcon("Icons/zoom_out.png"))
+            self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_out_True.png"))
+            self.Bview.setToolTip("Zoom out")
             self.SLseg.setGeometry(self.CTVLeftMargin, self.CTVTopMargin, self.CTVWidth*2, self.CTVHeight*2)
             self.Salpha.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-10*self.CTVBWidth, 
                                 self.CTVTopMargin*1.5, 
                                 self.CTVBWidth*10*0.95, self.CTVBHeight)
             self.single_view = True
         else:
-            self.Bview.setIcon(QIcon("Icons/zoom_in.png"))
+            self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_in_True.png"))
+            self.Bview.setToolTip("Zoom in")
             self.SLseg.setGeometry(self.CTVLeftMargin+self.CTVWidth, self.CTVTopMargin+self.CTVHeight, self.CTVWidth, self.CTVHeight)
             self.Salpha.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-10*self.CTVBWidth, 
                                 self.CTVTopMargin*1.5+self.CTVHeight, 
@@ -680,20 +799,25 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.SLseg.setPixmap(self.show_seg_file)
 
     def _drawChangedFunc(self):
-        if self.sender().mode == "Add":
+        if self.sender().mode == "Draw":
             self.SLseg.openPaint = True 
             self.SLseg.curLabel = self.curLabel
             self._closeSelector()
+            self.Berase.setEnabled(False)
+            self.Berase.setIcon(QIcon(f"Icons/{self.theme}/erase_False.png"))
         elif self.sender().mode == "Erase":
             self.SLseg.openPaint = True 
             self.SLseg.curLabel = "BACKGROUND"
             self._closeSelector()
+            self.Badd.setEnabled(False)
+            self.Badd.setIcon(QIcon(f"Icons/{self.theme}/draw_False.png"))
         elif self.sender().mode == "Back":
             self._closeSelector()
             self.SLseg.backFunc()
-        elif self.sender().mode == "Exit":
+        elif self.sender().mode == "Finish":
             self.SLseg.openPaint = False
             self._openSelector()
+            self._openDraw()
 
     def _penWidthChangedFunc(self):
         self.SLseg.penWidth = int(self.SpenWidth.value()) 
@@ -710,12 +834,30 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.SLseg.setPixmap(self.show_seg_file)
 
     def _closeDraw(self):
+        self.open_draw = False
         for obj in self.DrawButtons:
             obj.setEnabled(False)
+        self.Badd.setIcon(QIcon(f"Icons/{self.theme}/draw_False.png"))
+        self.Berase.setIcon(QIcon(f"Icons/{self.theme}/erase_False.png"))
+        self.Bback.setIcon(QIcon(f"Icons/{self.theme}/back_False.png"))
+        self.Bexit.setIcon(QIcon(f"Icons/{self.theme}/finish_False.png"))
+        if self.single_view:
+            self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_out_False.png"))
+        else:
+            self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_in_False.png"))
 
     def _openDraw(self):
+        self.open_draw = True
         for obj in self.DrawButtons:
             obj.setEnabled(True)
+        self.Badd.setIcon(QIcon(f"Icons/{self.theme}/draw_True.png"))
+        self.Berase.setIcon(QIcon(f"Icons/{self.theme}/erase_True.png"))
+        self.Bback.setIcon(QIcon(f"Icons/{self.theme}/back_True.png"))
+        self.Bexit.setIcon(QIcon(f"Icons/{self.theme}/finish_True.png"))
+        if self.single_view:
+            self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_out_True.png"))
+        else:
+            self.Bview.setIcon(QIcon(f"Icons/{self.theme}/zoom_in_True.png"))
 
     def _closeSelector(self):
         for obj in self.LSselector.Buttons:

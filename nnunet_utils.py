@@ -35,12 +35,11 @@ class Segmentor(object):
         self.printer = printer
 
     def _preprocess_save_to_queue(self, preprocess_fn, input_file, output_file):
-        self.printer("preprocessing", output_file)
+        self.printer(f"preprocessing {output_file}")
         d, _, dct = preprocess_fn([[input_file,]])
         if np.prod(d.shape) > (2e9 / 4 * 0.85):  # *0.85 just to be save, 4 because float32 is 4 bytes
             self.printer(
-                "This output is too large for python process-process communication. "
-                "Saving output temporarily to disk")
+                "This output is too large for python process-process communication. Saving output temporarily to disk")
             np.save(output_file[:-7] + ".npy", d)
             d = output_file[:-7] + ".npy"
         return output_file, (d, dct)
@@ -65,7 +64,7 @@ class Segmentor(object):
             data = np.load(d)
             os.remove(d)
             d = data
-        self.printer("predicting", output_file)
+        self.printer(f"predicting {output_file}")
         softmax = []
         for p in self.params:
             self.trainer.load_checkpoint_ram(p, False)

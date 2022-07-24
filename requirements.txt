@@ -2,7 +2,10 @@ batchgenerators==0.24
 nnunet==1.7.0
 numpy==1.19.4
 opencv_python_headless==4.5.2.54
+Pillow==9.2.0
 PyQt5==5.15.7
+QDarkStyle==3.1
+qt_material==2.12
 QtAwesome==1.1.1
 SimpleITK==2.1.1.2
 torch==1.8.1
