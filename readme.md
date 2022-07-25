@@ -11,7 +11,7 @@ Note: the current version is not yet a stable version, only preliminary testing 
 
 All packages can be installed by the following command:
 ```
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 
 ### Pretrained Models
