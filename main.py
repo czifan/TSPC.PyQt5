@@ -97,6 +97,73 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.open_draw = False
 
     # Views
+    def resizeEvent(self, event):
+        self.width = self.size().width()
+        self.height = self.size().height()
+
+        self.MenubarWidth = self.width
+        self.MenubarHeight = int(0.026*self.height)
+        self.Menubar.setGeometry(QtCore.QRect(0, 0, self.MenubarWidth, self.MenubarHeight))
+
+        self.WSTopMargin = int(0.026*self.height)
+        self.WSMargin = int(0.006*self.width)
+        self.WSWidth = int(0.109*self.width)
+        self.WSHeight = int(0.103*self.height)
+        self.WSlevel.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin, self.WSWidth, self.WSHeight)
+        self.WSwidth.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WStraSlice.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+2*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WSsagSlice.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+3*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WScorSlice.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+4*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.WSheight.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+5*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight)
+        self.LSselector.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+6*(self.WSMargin+self.WSHeight), self.WSWidth, self.WSHeight*2)
+        self.Bgenerate.setGeometry(self.WSMargin, self.WSTopMargin+2*self.WSMargin+7*(self.WSMargin+self.WSHeight)+self.WSHeight, self.WSWidth, self.WSHeight//3)
+        
+        self.CTVLeftMargin = 2*self.WSMargin+self.WSWidth+int(0.006*self.width)
+        self.CTVTopMargin = int(0.036*self.height)
+        self.CTVWidth = int(0.350*self.width)
+        self.CTVHeight = int(0.380*self.height)
+        self.CTVBWidth = int(0.030*self.height)
+        self.CTVBHeight = int(0.030*self.height)
+        self.SLtra.setGeometry(self.CTVLeftMargin, self.CTVTopMargin, self.CTVWidth, self.CTVHeight)
+        self.SLsag.setGeometry(self.CTVLeftMargin+self.CTVWidth, self.CTVTopMargin, self.CTVWidth, self.CTVHeight)
+        self.SLcor.setGeometry(self.CTVLeftMargin, self.CTVTopMargin+self.CTVHeight, self.CTVWidth, self.CTVHeight)
+        self.SLseg.setGeometry(self.CTVLeftMargin+self.CTVWidth, self.CTVTopMargin+self.CTVHeight, self.CTVWidth, self.CTVHeight)
+        self.Badd.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-5*self.CTVBWidth,
+                         self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
+        self.Berase.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-4*self.CTVBWidth,
+                         self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
+        self.Bback.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-3*self.CTVBWidth,
+                         self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
+        self.Bexit.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-2*self.CTVBWidth,
+                         self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
+        self.Bview.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-1*self.CTVBWidth,
+                         self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
+                         self.CTVBWidth*0.95, self.CTVBHeight*0.95)
+        self.SpenWidth.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-10*self.CTVBWidth,
+                                self.CTVTopMargin+self.CTVHeight*2-self.CTVBHeight,
+                                self.CTVBWidth*5*0.95, self.CTVBHeight)
+        self.Salpha.setGeometry(self.CTVLeftMargin+self.CTVWidth*2-10*self.CTVBWidth, 
+                               self.CTVTopMargin*1.5+self.CTVHeight, 
+                               self.CTVBWidth*10*0.95, self.CTVBHeight)
+
+        self.ConsoleTopMargin = 2*self.CTVHeight+self.CTVTopMargin
+        self.ConsoleLeftMargin = self.CTVLeftMargin
+        self.ConsoleWidth = 2*self.CTVWidth
+        self.ConsoleHeight = self.height-self.ConsoleTopMargin
+        self.Console.setGeometry(self.ConsoleLeftMargin, self.ConsoleTopMargin, 
+                                self.ConsoleWidth, self.ConsoleHeight)
+
+        self.ParamViewLeftMargin = self.ConsoleLeftMargin+self.ConsoleWidth
+        self.ParamViewTopMargin = self.CTVTopMargin
+        self.ParamViewWidth = self.width - self.ParamViewLeftMargin
+        self.ParamViewHeight = self.height - self.ParamViewTopMargin
+        self.ParamView.setGeometry(self.ParamViewLeftMargin, self.ParamViewTopMargin, 
+                                self.ParamViewWidth, self.ParamViewHeight)
+
     def centerOnScreen(self):
         resolution = QDesktopWidget().screenGeometry()
         self.move(int((resolution.width() / 2) - (self.width / 2)),
@@ -425,8 +492,8 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.Console.ensureCursorVisible()
         self.Console.setLineWrapColumnOrWidth(self.ConsoleWidth)
         self.Console.setLineWrapMode(QTextEdit.FixedPixelWidth)
-        self.Console.setFixedWidth(self.ConsoleWidth)
-        self.Console.setFixedHeight(self.ConsoleHeight)
+        #self.Console.setFixedWidth(self.ConsoleWidth)
+        #self.Console.setFixedHeight(self.ConsoleHeight)
         self.Console.setGeometry(self.ConsoleLeftMargin, self.ConsoleTopMargin, 
                                 self.ConsoleWidth, self.ConsoleHeight)
 
