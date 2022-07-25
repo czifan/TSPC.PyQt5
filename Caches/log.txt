@@ -1,1 +1,6 @@
-07-23 22:53 root         INFO     preprocessing generator
+07-25 11:08 root         INFO     preprocessing generator
+07-25 11:08 root         INFO     preprocessing Caches\Outputs\example.nii.gz
+07-25 11:08 root         INFO     predicting Caches\Outputs\example.nii.gz
+07-25 11:08 root         INFO     preprocessing generator
+07-25 11:08 root         INFO     preprocessing Caches\Outputs\example.nii.gz
+07-25 11:08 root         INFO     predicting Caches\Outputs\example.nii.gz

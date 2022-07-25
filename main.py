@@ -34,7 +34,7 @@ class SetupWindow(QtWidgets.QMainWindow):
                  base_height=975,
                  folder="DATASET/nnUNet_trained_models/nnUNet/2d/Task100_fat/nnUNetTrainerV2__nnUNetPlansv2.1",
                  folds=[4,],
-                 checkpoint_name="model_last"):
+                 checkpoint_name="model_best"):
         super().__init__()
 
         self.title = title
