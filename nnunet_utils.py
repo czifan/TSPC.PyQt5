@@ -17,7 +17,7 @@ class Segmentor(object):
                 save_npz=False, 
                 do_tta=True,
                 mixed_precision=True,
-                all_in_gpu=torch.cuda.is_available(),
+                all_in_gpu=False,
                 printer=print):
         super().__init__()
         trainer, params = load_model_and_checkpoint_files(

@@ -63,7 +63,11 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.Console.ensureCursorVisible()
 
     def _initSegor(self):
-        self.segmentor = Segmentor(self.folder, self.folds, self.checkpoint_name, printer=self.printer)
+        try:
+            self.segmentor = Segmentor(self.folder, self.folds, self.checkpoint_name, printer=self.printer)
+        except Exception as e:
+            self.segmentor = None
+            self.printer(f"Failed to loaded segmentation: {e}")
 
     def _initParams(self):
         desktop = QApplication.desktop()
