@@ -1,6 +1,6 @@
 # TSPC: An Automatic Tool for Tissues Segmentation and Parameters Calculation
 
-Note: the current version is not yet a stable version, only preliminary testing on the window10 platform, and will continue to be improved in the future.
+Note: the current version is not yet a stable version, only preliminary testing on the window10 platform with CPU, and will continue to be improved in the future.
 
 ## Quick starts
 

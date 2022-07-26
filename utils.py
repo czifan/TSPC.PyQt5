@@ -18,6 +18,9 @@ import subprocess
 import xlwt
 import logging
 from PIL import Image, ImageQt
+import torch 
+import torch.nn as nn
+from torchvision.models import resnet18
 
 label_to_id = {
     'BACKGROUND': 0,
@@ -73,3 +76,44 @@ def build_logging(filename):
     console.setFormatter(formatter)
     logging.getLogger('').addHandler(console)
     return logging
+
+class L3LocModel(nn.Module):
+    def __init__(self, N_neighbor=2, d_model=512):
+        super().__init__()
+        
+        backbone = resnet18(pretrained=False)
+        backbone.conv1 = nn.Conv2d(1, backbone.conv1.out_channels,
+                                  kernel_size=backbone.conv1.kernel_size,
+                                  stride=backbone.conv1.stride,
+                                  bias=backbone.conv1.bias)
+        self.pool = None
+        self.cnn = nn.Sequential(*list(backbone.children())[:-1])
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=0.0),
+            nn.Linear(d_model*(1+2*N_neighbor), d_model),
+            nn.Linear(d_model, 1)
+        )
+        self.N_neighbor = N_neighbor
+
+    def forward(self, x, N_lst=None):
+        # x: (B, N, 3, 96, 96)
+        B, N, C, H, W = x.shape
+        x = x.view(B*N, C, H, W)
+        cnn_feat = self.cnn(x)
+        if self.pool:
+            cnn_feat = self.pool(cnn_feat)
+        cnn_feat = cnn_feat.view(B, N, 1, -1) # (B, N, 1, 512)
+        
+        feat = []
+        for n in range(-self.N_neighbor, self.N_neighbor+1): # (-2, -1, 0, 1, 2)
+            if n <= 0: 
+                tmp = cnn_feat[:, abs(n):, ...]
+                tmp = torch.cat([tmp, torch.zeros(B, abs(n), *cnn_feat.shape[-2:]).float().to(cnn_feat.device)], dim=1)
+            else: 
+                tmp = cnn_feat[:, :-n, ...]
+                tmp = torch.cat([torch.zeros(B, n, *cnn_feat.shape[-2:]).float().to(cnn_feat.device), tmp], dim=1)
+            feat.append(tmp)
+        feat = torch.cat(feat, dim=2) # (B, N, 1+2*N_neighbor, 512)
+        feat = feat.view(B, N, -1)
+        pred = self.classifier(feat).squeeze(dim=2)
+        return pred

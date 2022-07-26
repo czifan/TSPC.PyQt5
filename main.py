@@ -3,6 +3,8 @@ import os
 import shutil
 import sys
 import numpy as np
+import torch
+import torch.nn as nn
 from PyQt5 import QtWidgets, QtCore, QtGui, sip
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -24,6 +26,7 @@ from qdarkstyle.light.palette import LightPalette
 from modules import *
 from utils import *
 from nnunet_utils import *
+import torch.nn.functional as F
 
 class SetupWindow(QtWidgets.QMainWindow):
     def __init__(self,
@@ -34,7 +37,8 @@ class SetupWindow(QtWidgets.QMainWindow):
                  base_height=975,
                  folder="DATASET/nnUNet_trained_models/nnUNet/2d/Task100_fat/nnUNetTrainerV2__nnUNetPlansv2.1",
                  folds=[4,],
-                 checkpoint_name="model_best"):
+                 checkpoint_name="model_best",
+                 l3_checkpoint_file="L3LocModel/L3LocModel.pth"):
         super().__init__()
 
         self.title = title
@@ -46,10 +50,12 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.folds = folds
         self.checkpoint_name = checkpoint_name
         self.single_view = False
+        self.l3_checkpoint_file = l3_checkpoint_file
 
         self._initParams()
         self._initUI()
         self._initSegor()
+        self._initL3LocModel()
 
         self.thread = MyThread()
         self.thread.signalForText.connect(self._onUpdateText)
@@ -68,6 +74,15 @@ class SetupWindow(QtWidgets.QMainWindow):
         except Exception as e:
             self.segmentor = None
             self.printer(f"Failed to loaded segmentation: {e}")
+
+    def _initL3LocModel(self):
+        try:
+            self.L3LocModel = L3LocModel()
+            self.L3LocModel.load_state_dict(torch.load(self.l3_checkpoint_file, map_location="cpu"))
+            self.L3LocModel.eval()
+        except Exception as e:
+            self.L3LocModel = None
+            self.printer(f"Failed to loaded L3LocModel: {e}")
 
     def _initParams(self):
         desktop = QApplication.desktop()
@@ -625,7 +640,8 @@ class SetupWindow(QtWidgets.QMainWindow):
         self.shape = self.np_image.shape 
         self.spacing = self.image.GetSpacing()
 
-        self.tra_slice_idx = self.shape[0]//2
+        self.tra_slice_idx = self._SliceLocation(deepcopy(self.np_image))
+        #self.tra_slice_idx = self.shape[0]//2
         self.cor_slice_idx = self.shape[1]//2
         self.sag_slice_idx = self.shape[2]//2
         self.WStraSlice.Slider.setValue(self.tra_slice_idx)
@@ -943,6 +959,27 @@ class SetupWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         sys.stdout = sys.__stdout__
         super().closeEvent(event)
+
+    def _SliceLocation(self, image, window_level=250, window_width=1000, target_size=96):
+        hu_lower = window_level - window_width/2
+        hu_higher = window_level + window_width/2
+        
+        image = image.clip(hu_lower, hu_higher)
+        image = ((image - hu_lower) / (hu_higher - hu_lower) * 255).astype(np.uint8)
+        tmp = image[image.shape[0]//2]
+        ind = np.where(tmp)
+        y1, y2 = min(ind[0]), max(ind[0])
+        x1, x2 = min(ind[1]), max(ind[1])
+        image = image[:, y1:y2, x1:x2]
+        image = torch.Tensor(image).unsqueeze(dim=1) # (N, 1, H, W)
+        X = F.interpolate(image, size=(target_size, target_size), mode="bilinear") # (N, 1, 96, 96)
+        
+        X = X.unsqueeze(dim=0).float()
+        with torch.no_grad():
+            p = self.L3LocModel(X)
+            p = torch.softmax(p, dim=1)
+        slice_id = torch.argmax(p, dim=1)[0].item()
+        return slice_id
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
